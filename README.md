@@ -1,4 +1,8 @@
 # AdvVisR
+
+CHARTS DOCS:
+https://docs.google.com/document/d/13mZX1WzhJiCK_4547lAoyrs_o8204YJ9_vEOpo-bK_c/edit?usp=sharing
+
 Project
 Each student is obliged to submit group project (at most 2 students per group) regarding data visualisation. Topic and database can be selected freely as long as it utilizes techniques used for visualization in R (not necessarily discussed during classes). The basic requirements and conditions:
 
