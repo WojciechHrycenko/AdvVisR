@@ -1,29 +1,17 @@
-# --- 0. SETUP & LIBRARIES ---
-# Ensure you have these packages installed:
-# install.packages(c("tidyverse", "scales", "ggalluvial", "treemapify", "ggcorrplot"))
-
 library(tidyverse)
-library(scales)      # For rescaling data
-library(ggalluvial)  # For flow charts
-library(treemapify)  # For treemaps
-library(ggcorrplot)  # For correlation matrices
-setwd("C:/Users/wojci/Desktop/VisR/AdvVisR/")
-# --- 1. DATA LOADING & PREPROCESSING ---
-# Reading the dataset
-df <- read_csv("Data/Final_data_modeled.csv")
+library(scales)
+library(ggalluvial)
+library(treemapify)
+library(ggcorrplot)
 
-# Preprocessing: Factor ordering and creating groups
+# Load data
+df <- read_csv("Data/Final_data_model.csv")
+
+# Preprocessing
 df <- df %>%
   mutate(
-    # Set order for Experience/Difficulty
-    `Difficulty Level` = factor(`Difficulty Level`, 
-                                levels = c("Beginner", "Intermediate", "Advanced")),
-    
-    # Create Age Groups
-    Age_Group = cut(Age, breaks = c(0, 25, 35, 45, 100), 
-                    labels = c("18-25", "26-35", "36-45", "45+")),
-    
-    # Create simpler Burn Category for Alluvial plot
+    `Difficulty Level` = factor(`Difficulty Level`, levels = c("Beginner", "Intermediate", "Advanced")),
+    Age_Group = cut(Age, breaks = c(0, 25, 35, 45, 100), labels = c("18-25", "26-35", "36-45", "45+")),
     Burn_Category = case_when(
       Calories_Burned < 500 ~ "Low Burn",
       Calories_Burned < 1000 ~ "Med Burn",
@@ -31,19 +19,13 @@ df <- df %>%
     )
   )
 
-# --- PLOT 1: SCALED SPIDER CHART (Custom Limits) ---
-
-# --- FUNCTION DEFINITION ---
+# --- PLOT 1: SCALED SPIDER CHART ---
 create_macro_radar <- function(data, group_col, plot_title) {
-  
-  # 1. Define Limits (Fixed scaling)
   custom_limits <- tibble(
     Nutrient = c("Proteins", "Fats", "Carbs"),
     Max_Limit = c(200, 100, 400)
   )
   
-  # 2. Prepare Data & Normalize
-  # Note: {{ }} allows passing column names without quotes
   radar_data <- data %>%
     group_by({{ group_col }}) %>%
     summarise(
@@ -55,7 +37,6 @@ create_macro_radar <- function(data, group_col, plot_title) {
     left_join(custom_limits, by = "Nutrient") %>%
     mutate(Value_Norm = Value / Max_Limit)
   
-  # 3. Calculate Coordinates (Triangle Angles)
   radar_coords <- radar_data %>%
     mutate(
       angle = case_when(
@@ -67,16 +48,13 @@ create_macro_radar <- function(data, group_col, plot_title) {
       y = Value_Norm * sin(angle)
     )
   
-  # 4. Generate Background Grid
   grid_levels <- c(0.25, 0.50, 0.75, 1.00)
-  
   grid_data <- expand_grid(level = grid_levels, angle = c(90, 330, 210) * pi / 180) %>%
     mutate(x = level * cos(angle), y = level * sin(angle)) %>%
     arrange(level, desc(angle)) %>%
     group_by(level) %>%
-    slice(c(1:n(), 1)) # Close loop
+    slice(c(1:n(), 1))
   
-  # 5. Generate Axis Labels
   axis_labels <- expand_grid(Nutrient = c("Proteins", "Fats", "Carbs"), level = grid_levels) %>%
     left_join(custom_limits, by = "Nutrient") %>%
     mutate(
@@ -90,33 +68,19 @@ create_macro_radar <- function(data, group_col, plot_title) {
       y = level * sin(angle)
     )
   
-  # 6. Close Data Polygons
   radar_closed <- radar_coords %>%
     arrange({{ group_col }}, desc(angle)) %>%
     group_by({{ group_col }}) %>%
     slice(c(1:n(), 1))
   
-  # 7. Plotting
   ggplot() +
-    # Grid & Axis Labels
-    geom_polygon(data = grid_data, aes(x, y, group = level), 
-                 fill = NA, color = "grey85", linetype = "dashed") +
-    geom_label(data = axis_labels, aes(x, y, label = Raw_Value), 
-               size = 2.5, color = "grey40", label.size = 0, fill = "white", alpha = 0.7) +
-    
-    # Data Polygons
-    geom_polygon(data = radar_closed, aes(x, y, color = {{ group_col }}, fill = {{ group_col }}), 
-                 alpha = 0.2, linewidth = 1) +
+    geom_polygon(data = grid_data, aes(x, y, group = level), fill = NA, color = "grey85", linetype = "dashed") +
+    geom_label(data = axis_labels, aes(x, y, label = Raw_Value), size = 2.5, color = "grey40", label.size = 0, fill = "white", alpha = 0.7) +
+    geom_polygon(data = radar_closed, aes(x, y, color = {{ group_col }}, fill = {{ group_col }}), alpha = 0.2, linewidth = 1) +
     geom_point(data = radar_coords, aes(x, y, color = {{ group_col }}), size = 3) +
-    
-    # Fixed Outer Labels
     annotate("text", x = 0, y = 1.15, label = "Proteins\n(Max 200g)", fontface = "bold") +
-    annotate("text", x = 1.15 * cos(330*pi/180), y = 1.15 * sin(330*pi/180), 
-             label = "Carbs\n(Max 400g)", fontface = "bold", hjust = 0.5) +
-    annotate("text", x = 1.15 * cos(210*pi/180), y = 1.15 * sin(210*pi/180), 
-             label = "Fats\n(Max 100g)", fontface = "bold", hjust = 0.5) +
-    
-    # Styling
+    annotate("text", x = 1.15 * cos(330*pi/180), y = 1.15 * sin(330*pi/180), label = "Carbs\n(Max 400g)", fontface = "bold", hjust = 0.5) +
+    annotate("text", x = 1.15 * cos(210*pi/180), y = 1.15 * sin(210*pi/180), label = "Fats\n(Max 100g)", fontface = "bold", hjust = 0.5) +
     scale_color_brewer(palette = "Set1") +
     scale_fill_brewer(palette = "Set1") +
     coord_fixed() +
@@ -125,36 +89,15 @@ create_macro_radar <- function(data, group_col, plot_title) {
     labs(title = plot_title)
 }
 
-# --- GENERATE PLOTS ---
-
-# 1. By Difficulty Level
-p1 <- create_macro_radar(df, `Difficulty Level`, "Macronutrient Profile by Difficulty (Scaled)")
-print(p1)
-
-# 2. By Workout Type
-p2 <- create_macro_radar(df, Workout_Type, "Macronutrient Profile by Workout Type (Scaled)")
-print(p2)
-
-# 3. By Meal Type
-p3 <- create_macro_radar(df, meal_type, "Macronutrient Profile by Meal Type (Scaled)")
-print(p3)
-
-
+print(create_macro_radar(df, `Difficulty Level`, "Macronutrient Profile by Difficulty (Scaled)"))
+print(create_macro_radar(df, Workout_Type, "Macronutrient Profile by Workout Type (Scaled)"))
+print(create_macro_radar(df, meal_type, "Macronutrient Profile by Meal Type (Scaled)"))
 
 # --- PLOT 2: SCATTER PLOT (Training Efficiency) ---
-p_scatter <- ggplot(df, aes(x = Avg_BPM, 
-                            y = Calories_Burned, 
-                            color = Workout_Type, 
-                            size = `Session_Duration (hours)`)) +
-  
-  # Points with transparency to handle overlaps
+p_scatter <- ggplot(df, aes(x = Avg_BPM, y = Calories_Burned, color = Workout_Type, size = `Session_Duration (hours)`)) +
   geom_point(alpha = 0.6) +
-  
-  # Scales & Colors
   scale_color_brewer(palette = "Set1") +
   scale_size_continuous(range = c(1, 6), name = "Duration (hrs)") +
-  
-  # Theme & Labels
   theme_minimal() +
   theme(
     legend.position = "right",
@@ -167,59 +110,21 @@ p_scatter <- ggplot(df, aes(x = Avg_BPM,
     x = "Average Heart Rate (BPM)",
     y = "Total Calories Burned"
   )
-
 print(p_scatter)
 
-
-
-
-
-
-
-# --- PLOT 3: TREEMAP (Ordered: Breakfast -> Lunch -> Dinner -> Snack) ---
-
-# 1. Aggregating Data & Enforcing Order
+# --- PLOT 3: TREEMAP ---
 tree_data <- df %>%
   group_by(`Difficulty Level`, meal_type, cooking_method) %>%
   summarise(Total_Calories = sum(Calories, na.rm = TRUE), .groups = "drop") %>%
   filter(Total_Calories > 0) %>%
-  # Enforce specific order for Meal Type
   mutate(meal_type = factor(meal_type, levels = c("Breakfast", "Lunch", "Dinner", "Snack")))
 
-# 2. Generating Plot
 p_tree <- ggplot(tree_data, aes(area = Total_Calories, fill = meal_type, label = cooking_method, subgroup = meal_type)) +
-  
-  # Base Treemap
   geom_treemap(layout = "squarified", color = "white", size = 2) +
-  
-  # Subgroup Borders
   geom_treemap_subgroup_border(colour = "white", size = 5) +
-  
-  # Header Labels (Top-Left)
-  geom_treemap_subgroup_text(
-    place = "topleft", 
-    grow = FALSE, 
-    colour = "#333333", 
-    fontface = "bold", 
-    size = 13, 
-    padding.x = grid::unit(3, "mm"),
-    padding.y = grid::unit(3, "mm"),
-    alpha = 1
-  ) +
-  
-  # Tile Labels (Method + Formatted Calories)
-  geom_treemap_text(
-    aes(label = paste0(cooking_method, "\n", format(round(Total_Calories, 0), big.mark = " ", trim = TRUE))), 
-    colour = "white", 
-    place = "centre", 
-    grow = FALSE, 
-    reflow = TRUE
-  ) +
-  
-  # Faceting
+  geom_treemap_subgroup_text(place = "topleft", grow = FALSE, colour = "#333333", fontface = "bold", size = 13, padding.x = grid::unit(3, "mm"), padding.y = grid::unit(3, "mm"), alpha = 1) +
+  geom_treemap_text(aes(label = paste0(cooking_method, "\n", format(round(Total_Calories, 0), big.mark = " ", trim = TRUE))), colour = "white", place = "centre", grow = FALSE, reflow = TRUE) +
   facet_wrap(~ `Difficulty Level`) +
-  
-  # Styling
   scale_fill_brewer(palette = "Set2") +
   theme(
     legend.position = "bottom",
@@ -231,49 +136,26 @@ p_tree <- ggplot(tree_data, aes(area = Total_Calories, fill = meal_type, label =
     subtitle = "Size represents Total Calories | Ordered: Breakfast → Lunch → Dinner → Snack",
     fill = "Meal Type"
   )
-
 print(p_tree)
 
-
-
-
-
-
-# --- PLOT 4: ALLUVIAL PLOT (Experience -> Workout -> Burn) ---
-
-# 1. Prepare Data
+# --- PLOT 4: ALLUVIAL PLOT ---
 alluvial_data <- df %>%
-  # Convert numeric Experience to Categories
-  mutate(Experience_Cat = case_when(
-    Experience_Level <= 1.5 ~ "Beginner",
-    Experience_Level <= 2.5 ~ "Intermediate",
-    TRUE ~ "Advanced"
-  )) %>%
-  # Define Factor Levels for logical ordering
   mutate(
+    Experience_Cat = case_when(
+      Experience_Level <= 1.5 ~ "Beginner",
+      Experience_Level <= 2.5 ~ "Intermediate",
+      TRUE ~ "Advanced"
+    ),
     Experience_Cat = factor(Experience_Cat, levels = c("Beginner", "Intermediate", "Advanced")),
-    Burns_Calories_Bin = factor(Burns_Calories_Bin, levels = c("Low", "Medium", "High", "Very High"))
+    # Using created Burn_Category instead of potential csv column Burns_Calories_Bin for consistency
+    Burn_Category = factor(Burn_Category, levels = c("Low Burn", "Med Burn", "High Burn")) 
   ) %>%
-  # Aggregate frequency
-  count(Experience_Cat, Workout_Type, Burns_Calories_Bin)
+  count(Experience_Cat, Workout_Type, Burn_Category)
 
-# 2. Generate Plot
-p_alluvial <- ggplot(alluvial_data,
-                     aes(axis1 = Experience_Cat, 
-                         axis2 = Workout_Type, 
-                         axis3 = Burns_Calories_Bin,
-                         y = n)) +
-  
-  # The Flow (Alluvia)
+p_alluvial <- ggplot(alluvial_data, aes(axis1 = Experience_Cat, axis2 = Workout_Type, axis3 = Burn_Category, y = n)) +
   geom_alluvium(aes(fill = Experience_Cat), width = 1/12, alpha = 0.7, knot.pos = 0.4) +
-  
-  # The Vertical Blocks (Strata)
   geom_stratum(width = 1/12, fill = "grey95", color = "grey20") +
-  
-  # Labels inside blocks
   geom_text(stat = "stratum", aes(label = after_stat(stratum)), size = 3, fontface = "bold") +
-  
-  # Scales & Theme
   scale_fill_brewer(palette = "Set1") +
   theme_minimal() +
   theme(
@@ -282,160 +164,76 @@ p_alluvial <- ggplot(alluvial_data,
     axis.ticks = element_blank(),
     panel.grid = element_blank()
   ) +
-  
-  # Axis Labels (Manually setting x-axis labels for the 3 stages)
   scale_x_discrete(limits = c("Experience", "Workout Type", "Burn Intensity"), expand = c(.05, .05)) +
-  
   labs(
     title = "Workout Flows: Experience to Intensity",
     subtitle = "Tracing the path from experience level to calorie burn efficiency",
     fill = "Experience Level",
     y = "Number of Sessions"
   )
-
 print(p_alluvial)
 
-
-
-
-
-
-# --- PLOT 5: BMI HISTOGRAM BY GENDER ---
-
+# --- PLOT 5: BMI HISTOGRAM ---
 p_bmi <- ggplot(df, aes(x = BMI, fill = Gender)) +
-  
-  # Histogram with transparency for comparison
-  geom_histogram(
-    binwidth = 1, 
-    alpha = 0.6, 
-    position = "identity", 
-    color = "white"
-  ) +
-  
-  # Styling
+  geom_histogram(binwidth = 1, alpha = 0.6, position = "identity", color = "white") +
   scale_fill_brewer(palette = "Set1") +
   theme_minimal() +
-  theme(
-    legend.position = "top",
-    plot.title = element_text(face = "bold", size = 14)
-  ) +
-  
-  # Labels
-  labs(
-    title = "BMI Distribution by Gender",
-    subtitle = "Overlapping histograms showing population spread",
-    x = "BMI Value",
-    y = "Number of People"
-  )
-
+  theme(legend.position = "top", plot.title = element_text(face = "bold", size = 14)) +
+  labs(title = "BMI Distribution by Gender", x = "BMI Value", y = "Number of People")
 print(p_bmi)
 
-
-
-# --- PLOT 6: BAR CHART (Frequency by Specific Exercise Name) ---
-
-# 1. Prepare Data & Filter Top Exercises
-# Znajdźmy 6 najczęściej występujących ćwiczeń, żeby wykres był czytelny
+# --- PLOT 6: BAR CHART (TOP EXERCISES) ---
 top_exercises <- df %>%
   count(Name_of_Exercise, sort = TRUE) %>%
   slice_head(n = 6) %>%
   pull(Name_of_Exercise)
 
 bar_data <- df %>%
-  # Wybieramy tylko te wiersze, które zawierają TOP 6 ćwiczeń
   filter(Name_of_Exercise %in% top_exercises) %>%
-  mutate(
-    # Zaokrąglamy częstotliwość do pełnych dni
-    Freq_Day = round(`Workout_Frequency (days/week)`, 0)
-  )
+  mutate(Freq_Day = round(`Workout_Frequency (days/week)`, 0))
 
-# 2. Plot
 p_freq_exercise <- ggplot(bar_data, aes(x = factor(Freq_Day), fill = Name_of_Exercise)) +
-  
-  # Rysujemy słupki (bez 'dodge', bo użyjemy facetów)
   geom_bar(color = "black", alpha = 0.8, width = 0.7, show.legend = FALSE) +
-  
-  # Faceting: Rozdzielamy każde ćwiczenie na osobny panel
   facet_wrap(~ Name_of_Exercise, scales = "free_y") +
-  
-  # Styling
   scale_fill_brewer(palette = "Dark2") +
   theme_minimal() +
   theme(
     plot.title = element_text(face = "bold", size = 16),
-    strip.text = element_text(face = "bold", size = 12), # Nagłówki paneli
-    axis.text = element_text(size = 10),
+    strip.text = element_text(face = "bold", size = 12),
     panel.grid.minor = element_blank()
   ) +
-  
-  # Labels
   labs(
     title = "Workout Frequency by Exercise Name (Top 6)",
     subtitle = "Distribution of weekly training days for most popular exercises",
     x = "Days per Week",
     y = "Number of People"
   )
-
 print(p_freq_exercise)
 
-
-# --- PLOT 7: CORRELATION PLOT (Calories vs Macros) ---
-
-# 1. Compute Correlation Matrix
-# Selecting only numeric nutrient columns + Calories
+# --- PLOT 7: CORRELATION PLOT ---
 corr_matrix <- df %>%
   select(Calories, Proteins, Fats, Carbs) %>%
   cor(use = "complete.obs", method = "pearson")
 
-# 2. Generate Plot
-p_corr <- ggcorrplot(corr_matrix,
-                     method = "circle",           # Visual style: circle or square
-                     type = "lower",              # Show only lower triangle (cleaner)
-                     lab = TRUE,                  # Show correlation coefficients numbers
-                     lab_size = 5,                # Size of numbers
-                     colors = c("#E46726", "white", "#6D9EC1"), # Red-White-Blue gradient
+p_corr <- ggcorrplot(corr_matrix, method = "circle", type = "lower", lab = TRUE, lab_size = 5,
+                     colors = c("#E46726", "white", "#6D9EC1"),
                      title = "Correlation Matrix: Calories vs. Macronutrients",
-                     ggtheme = theme_minimal()
-) +
-  theme(
-    plot.title = element_text(face = "bold", size = 16),
-    legend.position = "right"
-  )
-
+                     ggtheme = theme_minimal()) +
+  theme(plot.title = element_text(face = "bold", size = 16), legend.position = "right")
 print(p_corr)
 
-
-# --- PLOT 8: GROUPED BAR CHART (Workout Type by Gender & Age) ---
-
-# 1. Prepare Data
+# --- PLOT 8: GROUPED BAR CHART ---
 grouped_data <- df %>%
-  # Create categorical Age Groups from numeric Age
-  mutate(Age_Group = cut(Age, 
-                         breaks = c(-Inf, 30, 45, 60, Inf), 
-                         labels = c("18-30", "31-45", "46-60", "60+"))) %>%
-  # Filter out any potential NAs
+  mutate(Age_Group = cut(Age, breaks = c(-Inf, 30, 45, 60, Inf), labels = c("18-30", "31-45", "46-60", "60+"))) %>%
   filter(!is.na(Age_Group)) %>%
-  
-  # Count occurrences
   group_by(Age_Group, Gender, Workout_Type) %>%
   summarise(Count = n(), .groups = "drop_last") %>%
-  
-  # Calculate Percentage within each Age Group + Gender combination
   mutate(Percentage = Count / sum(Count) * 100)
 
-# 2. Generate Plot
 p_grouped <- ggplot(grouped_data, aes(x = Age_Group, y = Percentage, fill = Gender)) +
-  
-  # Draw bars side-by-side (dodge)
   geom_bar(stat = "identity", position = position_dodge(width = 0.8), width = 0.7, color = "black", alpha = 0.8) +
-  
-  # Facet by Workout Type to see distribution for each activity
   facet_wrap(~ Workout_Type) +
-  
-  # Y-axis formatted as percentages
   scale_y_continuous(labels = percent_format(scale = 1)) +
-  
-  # Styling
   scale_fill_brewer(palette = "Set1") +
   theme_minimal() +
   theme(
@@ -444,8 +242,6 @@ p_grouped <- ggplot(grouped_data, aes(x = Age_Group, y = Percentage, fill = Gend
     strip.text = element_text(face = "bold", size = 12),
     axis.text.x = element_text(angle = 0, hjust = 0.5)
   ) +
-  
-  # Labels
   labs(
     title = "Workout Preference by Age & Gender",
     subtitle = "Percentage of workout types chosen within each demographic group",
@@ -453,6 +249,4 @@ p_grouped <- ggplot(grouped_data, aes(x = Age_Group, y = Percentage, fill = Gend
     y = "Percentage share",
     fill = "Gender"
   )
-
 print(p_grouped)
-
