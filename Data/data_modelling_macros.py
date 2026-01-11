@@ -193,5 +193,235 @@ def advanced_modeling_full(df):
 
 df_final = advanced_modeling_full(df)
 
+# --- STEP C: ADDITIONAL PRO MODELING (FULL LOGIC) ---
+
+# C.1 Diet-Based Macro Restructuring & Calorie Calculation
+# - Adjusts Macros based on Diet Type (Keto = High Fat, etc.)
+# - Applies Aggressive "Meal Volume Bias" to visually distinguish diets in Treemaps
+# - Calculates Sugar with Toned Down logic (to avoid "all red" charts)
+# - Re-calculates Calories strictly from Macros (4/9/4 rule)
+
+def adjust_nutrition_by_diet(row):
+    p, f, c = row['Proteins'], row['Fats'], row['Carbs']
+    diet = str(row['diet_type'])
+    meal = str(row['meal_type']).lower()
+    
+    # 1. MACRO PROFILE (Base Proportions)
+    if 'Keto' in diet:
+        p *= 1.0;  f *= 1.7;  c *= 0.05   # High Fat, Very Low Carb
+    elif 'Vegan' in diet or 'Vegetarian' in diet:
+        p *= 0.8;  f *= 0.7;  c *= 1.40   # High Carb, Lower Fat/Protein
+    elif 'Paleo' in diet:
+        p *= 1.5;  f *= 1.1;  c *= 0.30   # High Protein
+    elif 'Low-Carb' in diet:
+        p *= 1.2;  f *= 1.2;  c *= 0.40
+    # Balanced stays x1.0
+        
+    # 2. MEAL VOLUME BIAS (Aggressive Stereotypes for Visualization)
+    volume_factor = 1.0
+    
+    if 'Keto' in diet:
+        # IF Style: Huge Lunch, tiny Breakfast/Snack
+        if meal == 'lunch': volume_factor = 1.6
+        elif meal == 'dinner': volume_factor = 1.0
+        elif meal == 'breakfast': volume_factor = 0.5
+        elif meal == 'snack': volume_factor = 0.2
+        
+    elif 'Paleo' in diet:
+        # Feast style: Huge Dinner
+        if meal == 'dinner': volume_factor = 1.8
+        elif meal == 'lunch': volume_factor = 0.8
+        elif meal == 'breakfast': volume_factor = 0.6
+        elif meal == 'snack': volume_factor = 0.4
+        
+    elif 'Vegan' in diet or 'Vegetarian' in diet:
+        # Grazing style: Big Snacks & Breakfasts
+        if meal == 'breakfast': volume_factor = 1.4
+        elif meal == 'snack': volume_factor = 1.5
+        elif meal == 'lunch': volume_factor = 0.9
+        elif meal == 'dinner': volume_factor = 0.9
+        
+    elif 'Low-Carb' in diet:
+        # Tapering down
+        if meal == 'lunch': volume_factor = 1.3
+        elif meal == 'breakfast': volume_factor = 1.1
+        elif meal == 'dinner': volume_factor = 0.7
+        elif meal == 'snack': volume_factor = 0.5
+        
+    else: # Balanced
+        # Classic pyramid
+        if meal == 'lunch': volume_factor = 1.2
+        elif meal == 'dinner': volume_factor = 1.1
+        elif meal == 'breakfast': volume_factor = 0.9
+        elif meal == 'snack': volume_factor = 0.6
+
+    p *= volume_factor
+    f *= volume_factor
+    c *= volume_factor
+
+    # 3. SUGAR LOGIC (TONED DOWN)
+    # Reduced base calculation from 15% to 10% of carbs
+    base_sugar = c * 0.10
+    
+    # Milder multipliers
+    if 'Keto' in diet: base_sugar *= 0.05
+    elif 'Vegan' in diet or 'Vegetarian' in diet: base_sugar *= 1.2
+    elif 'Paleo' in diet: base_sugar *= 0.4
+    
+    # Milder snack penalty
+    if meal == 'snack': base_sugar *= 1.3
+    
+    # Random noise but cap max sugar realistically
+    sugar = min(c, max(0, base_sugar * np.random.uniform(0.8, 1.2)))
+    
+    # 4. Strict Calorie Calc (4/9/4 Rule)
+    calories = (p * 4) + (f * 9) + (c * 4)
+    
+    return pd.Series([p, f, c, sugar, calories])
+
+df_final[['Proteins', 'Fats', 'Carbs', 'sugar_g', 'Calories']] = df_final.apply(adjust_nutrition_by_diet, axis=1)
+
+
+# C.2 Heart Rate Physiology (Resting & Max based on Experience)
+# - Advanced users: Lower resting BPM, higher Max BPM (Athletic heart)
+def model_physiology(row):
+    diff = row['Difficulty Level']
+    age = row['Age']
+    
+    # Tanaka formula for base max
+    base_max_hr = 208 - (0.7 * age)
+    
+    if diff == 'Advanced':
+        resting = np.random.normal(52, 5)  
+        max_hr = base_max_hr * np.random.uniform(0.98, 1.05) 
+    elif diff == 'Intermediate':
+        resting = np.random.normal(68, 6)
+        max_hr = base_max_hr * np.random.uniform(0.92, 1.0)
+    else: # Beginner
+        resting = np.random.normal(78, 8)
+        max_hr = base_max_hr * np.random.uniform(0.85, 0.95)
+        
+    return pd.Series([resting, max_hr])
+
+df_final[['Resting_BPM', 'Max_BPM']] = df_final.apply(model_physiology, axis=1)
+
+
+# C.3 Fat Percentage (Body Composition)
+# - Gender differences + Experience bonus (Advanced = leaner)
+def model_body_fat(row):
+    gender = row['Gender']
+    diff = row['Difficulty Level']
+    
+    if gender == 'Male':
+        fat = np.random.normal(20, 4)
+        if diff == 'Advanced': fat -= 6
+        elif diff == 'Intermediate': fat -= 2
+        min_fat = 4.0
+    else: # Female
+        fat = np.random.normal(28, 5)
+        if diff == 'Advanced': fat -= 6
+        elif diff == 'Intermediate': fat -= 2
+        min_fat = 12.0
+            
+    return max(min_fat, fat)
+
+df_final['Fat_Percentage'] = df_final.apply(model_body_fat, axis=1)
+
+
+# C.4 Burn Category Logic
+# - Syncs with the actual Calories_Burned column for Alluvial consistency
+def set_burn_category(cals):
+    if cals < 400: return 'Low Burn'
+    elif cals < 750: return 'Med Burn'
+    else: return 'High Burn'
+
+df_final['Burn_Category'] = df_final['Calories_Burned'].apply(set_burn_category)
+
+# --- STEP D: CORRELATION ENGINEERING (PHYSICS ENFORCEMENT PRO) ---
+# Goal: Enforce logical correlations for the final matrix.
+# We create dependencies: Age -> Weight -> Duration/BPM -> Calories.
+
+def enforce_physics(row):
+    # Load current values
+    age = row['Age']
+    weight = row['Weight (kg)']
+    height = row['Height (m)']
+    duration = row['Session_Duration (hours)']
+    bpm = row['Avg_BPM']
+    
+    # 1. AGE -> WEIGHT / BMI LINK (Metabolic slowdown)
+    # Older people in dataset get a slight weight penalty (Trend)
+    # This creates Age-Weight and Age-BMI correlation.
+    if age > 30:
+        weight_trend = (age - 30) * 0.15 
+        weight += np.random.uniform(0, weight_trend)
+        
+    # Recalculate BMI with new Weight
+    if height < 1.0: height = 1.7
+    bmi = weight / (height ** 2)
+    
+    # 2. WEIGHT/BMI -> DURATION (Fatigue Factor)
+    # Heavier people might train slightly shorter (Negative Correlation)
+    # If BMI is high, duration shrinks slightly.
+    if bmi > 25:
+        fatigue_factor = 1.0 - ((bmi - 25) * 0.015) # -1.5% duration per BMI point over 25
+        duration *= max(0.5, fatigue_factor) # Don't go below 50%
+        
+    # 3. WEIGHT/BMI -> BPM (Effort Factor)
+    # Heavier body needs higher Heart Rate to move (Positive Correlation)
+    if bmi > 25:
+        effort_add = (bmi - 25) * 0.8
+        bpm += effort_add
+        
+    # 4. AGE -> BPM (Max HR Ceiling)
+    # Older people can't sustain super high BPM (Negative Correlation)
+    max_theoretical = 208 - (0.7 * age)
+    if bpm > max_theoretical:
+        bpm = max_theoretical * np.random.uniform(0.9, 0.98)
+        
+    # 5. FINAL CALORIE CALCULATION (The Master Formula)
+    # Burn depends on all above: Mass, Duration, Intensity, Age
+    
+    # Intensity Factor (Exponential cost of high RPM)
+    intensity_factor = (bpm / 100.0) ** 1.5
+    
+    # Mass Factor (Linear cost of moving weight)
+    mass_factor = weight / 70.0
+    
+    # Age Factor (Metabolic decline) - Older burn slightly less
+    age_factor = 1.0 - ((age - 20) * 0.002) 
+    
+    # Base constant (~450 kcal/hr baseline)
+    base_burn = 450
+    
+    new_burn = base_burn * duration * intensity_factor * mass_factor * age_factor
+    
+    # Add small noise (3%) to preserve 'natural' look
+    new_burn *= np.random.uniform(0.97, 1.03)
+    
+    return pd.Series([weight, bmi, duration, bpm, new_burn])
+
+# Apply the physics engine and update ALL correlated columns
+df_final[['Weight (kg)', 'BMI', 'Session_Duration (hours)', 'Avg_BPM', 'Calories_Burned']] = df_final.apply(enforce_physics, axis=1)
+
+# --- RE-SYNC BURN CATEGORY ---
+# Update category based on new physics-based calories
+df_final['Burn_Category'] = df_final['Calories_Burned'].apply(set_burn_category)
+
+# --- OPTIONAL: MUSCLE GROUP LOGIC (THE BLUEPRINT) ---
+def assign_muscle_group(row):
+    w_type = row['Workout_Type']
+    
+    if w_type == 'Cardio':
+        return np.random.choice(['Legs', 'Full Body', 'Heart'], p=[0.4, 0.4, 0.2])
+    elif w_type == 'HIIT':
+        return np.random.choice(['Full Body', 'Legs', 'Core'], p=[0.6, 0.2, 0.2])
+    elif w_type == 'Strength':
+        return np.random.choice(['Chest', 'Back', 'Legs', 'Arms', 'Shoulders'], p=[0.2, 0.2, 0.3, 0.15, 0.15])
+    elif w_type == 'Yoga':
+        return np.random.choice(['Core', 'Full Body', 'Back'], p=[0.5, 0.3, 0.2])
+    return 'Full Body'
+
+df_final['Target Muscle Group'] = df_final.apply(assign_muscle_group, axis=1)
 # --- SAVE ---
-df_final.to_csv('Final_data_modeled.csv', index=False)
+df_final.to_csv('Final_data_model.csv', index=False)
