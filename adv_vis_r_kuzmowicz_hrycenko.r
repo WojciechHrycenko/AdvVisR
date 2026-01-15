@@ -319,7 +319,7 @@ print(p_muscle)
 # ==============================================================================
 
 # --- PLOT 6: ENHANCED DUMBBELL (Heart Rate Reserve) ---
-# Goal: Show heart usage (Resting -> Max) and actual Training Intensity.
+
 dumbbell_data <- df %>%
   group_by(`Difficulty Level`) %>%
   summarise(
@@ -329,43 +329,82 @@ dumbbell_data <- df %>%
   )
 
 p_dumbbell <- ggplot(dumbbell_data, aes(y = `Difficulty Level`)) +
+  
   # Reserve Bar (Grey)
-  geom_segment(aes(x = Resting, xend = Max, yend = `Difficulty Level`), color = "grey90", linewidth = 6, lineend = "round") +
+  geom_segment(aes(x = Resting, xend = Max, yend = `Difficulty Level`), 
+               color = "grey90", linewidth = 6, lineend = "round") +
+  
   # Usage Bar (Green)
-  geom_segment(aes(x = Resting, xend = Avg_Workout, yend = `Difficulty Level`), color = "#69b3a2", linewidth = 6, lineend = "round") +
+  geom_segment(aes(x = Resting, xend = Avg_Workout, yend = `Difficulty Level`), 
+               color = "#69b3a2", linewidth = 6, lineend = "round") +
+  
   # Points
   geom_point(aes(x = Resting), color = "#2c3e50", size = 5) +
   geom_point(aes(x = Max), color = "#e74c3c", size = 5) +
-  geom_point(aes(x = Avg_Workout), color = "white", size = 3, shape = 18) +
+  geom_point(aes(x = Avg_Workout), color = "white", size = 3) +
+  
   # Labels
-  geom_text(aes(x = Resting, label = paste0(round(Resting), " bpm")), vjust = 2.5, size = 3, fontface = "bold", color = "#2c3e50") +
-  geom_text(aes(x = Max, label = paste0(round(Max), " bpm")), vjust = 2.5, size = 3, fontface = "bold", color = "#e74c3c") +
-  geom_text(aes(x = Avg_Workout, label = "Train Avg"), vjust = -1.8, size = 2.5, fontface = "italic", color = "#69b3a2") +
+  
+  # Resting Label
+  geom_text(aes(x = Resting, label = paste0(round(Resting), " bpm")), 
+            vjust = 2.5, size = 3, fontface = "bold", color = "#2c3e50") +
+  
+  # Max Label
+  geom_text(aes(x = Max, label = paste0(round(Max), " bpm")), 
+            vjust = 2.5, size = 3, fontface = "bold", color = "#e74c3c") +
+  
+  # Train Avg Label (UPDATED: Bold and Size 3)
+  geom_text(aes(x = Avg_Workout, label = paste0("Avg: ", round(Avg_Workout), " bpm")), 
+            vjust = -1.8, size = 3, fontface = "bold", color = "#69b3a2") +
+  
+  # Reverse Y-axis order (Beginner on Top)
+  scale_y_discrete(limits = rev) +
+  
   theme_minimal() +
-  theme(plot.title = element_text(face = "bold", size = 16), panel.grid.major.y = element_blank(), axis.text.y = element_text(face = "bold", size = 11)) +
-  labs(title = "Heart Rate Reserve Analysis", subtitle = "Grey Bar: Total Reserve | Green Bar: Actual Training Intensity Used", x = "Heart Rate (BPM)", y = "")
+  theme(plot.title = element_text(face = "bold", size = 16), 
+        panel.grid.major.y = element_blank(), 
+        axis.text.y = element_text(face = "bold", size = 11)) +
+  
+  labs(title = "Heart Rate Reserve Analysis", 
+       subtitle = " Green Bar: Actual Training Intensity Used | Grey Bar: Total Reserve", 
+       x = "Heart Rate (BPM)", y = "")
 
 print(p_dumbbell)
 
 
 # --- PLOT 7: RIDGELINE (Mountains of Fat) ---
-# Goal: Visualize body fat distribution by Gender and Experience Level.
+
 ridge_data <- df %>%
   mutate(
     Group_Label = paste(Gender, "|", `Difficulty Level`),
+    
+    # REORDERING: Advanced at Bottom (Level 1), Beginner at Top
     Group_Label = factor(Group_Label, levels = c(
-      "Male | Advanced", "Male | Intermediate", "Male | Beginner",
-      "Female | Advanced", "Female | Intermediate", "Female | Beginner"
+      "Male | Advanced", "Female | Advanced",
+      "Male | Intermediate", "Female | Intermediate",
+      "Male | Beginner", "Female | Beginner"
     ))
   ) %>%
   filter(!is.na(Group_Label))
 
 p_ridge <- ggplot(ridge_data, aes(x = Fat_Percentage, y = Group_Label, fill = after_stat(x))) +
-  geom_density_ridges_gradient(scale = 2.5, rel_min_height = 0.01, quantile_lines = TRUE, quantiles = 2, size = 0.3, color = "white") +
+  
+  geom_density_ridges_gradient(scale = 2.5, rel_min_height = 0.01, 
+                               quantile_lines = TRUE, quantiles = 2, 
+                               size = 0.3, color = "white") +
+  
   scale_fill_viridis_c(name = "Body Fat %", option = "C") +
+  
   theme_minimal() +
-  theme(plot.title = element_text(face = "bold", size = 16), axis.text.y = element_text(face = "bold", size = 10), panel.grid.major.y = element_blank()) +
-  labs(title = "Mountains of Fat", subtitle = "Distribution of Body Fat % by Gender & Experience (White line = Median)", x = "Body Fat Percentage", y = "")
+  
+  theme(plot.title = element_text(face = "bold", size = 16), 
+        axis.text.y = element_text(face = "bold", size = 10), 
+        panel.grid.major.y = element_blank()) +
+  
+  labs(title = "Mountains of Fat", 
+       subtitle = "Height of mountain = Density (Relative number of people)\nWhite line = Median value", 
+       x = "Body Fat Percentage", 
+       y = "") # REMOVED Y-AXIS TITLE
 
 print(p_ridge)
 
@@ -379,4 +418,49 @@ corr_data <- df %>%
 
 p_corr <- ggcorrplot(corr_data, method = "circle", type = "lower", lab = TRUE, lab_size = 3, 
                      colors = c("#E46726", "white", "#6D9EC1"), title = "Key Metrics Correlations")
+print(p_corr)
+
+
+# --- PLOT 8: CORRELATION MATRIX (Final - Cleaned) ---
+
+corr_data <- df %>%
+  select(
+    Age, 
+    `Weight (kg)`, 
+    BMI, 
+    Calories_Burned, 
+    Avg_BPM, 
+    Duration_Hrs,
+    # Kept the good ones, removed Body Fat
+    Resting_BPM,
+    `Workout_Frequency (days/week)`
+  ) %>%
+  rename(
+    Weight = `Weight (kg)`, 
+    Duration = Duration_Hrs,
+    `Resting HR` = Resting_BPM,
+    Frequency = `Workout_Frequency (days/week)`
+  ) %>%
+  cor(use = "complete.obs")
+
+p_corr <- ggcorrplot(
+  corr_data,
+  method = "circle",       
+  type = "lower",          
+  hc.order = TRUE,         
+  lab = TRUE,              
+  lab_size = 3.5,            
+  outline.color = "white", 
+  colors = c("#69b3a2", "white", "#e74c3c"), 
+  title = "Correlation Matrix",
+  ggtheme = theme_minimal(base_family = "Geologica") 
+) +
+  theme(
+    plot.title = element_text(face = "bold", size = 18),
+    axis.text = element_text(face = "bold", size = 10),
+    legend.title = element_text(face = "bold"),
+    legend.position = "right",
+    panel.grid = element_blank()
+  )
+
 print(p_corr)
