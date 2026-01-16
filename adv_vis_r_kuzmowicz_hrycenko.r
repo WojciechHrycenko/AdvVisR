@@ -170,7 +170,7 @@ p_alluvial <- df %>%
   scale_fill_brewer(palette = "Dark2", name = "Experience Group") + 
   
   theme_void(base_family = font_main) +
-  labs(title = "The Warrior's Path", subtitle = "Tracing the flow: Experience Level → Workout Choice → Caloric Efficiency") +
+  labs(title = "The Warrior's Path", subtitle = "Tracking the flow: Experience Level → Workout Choice → Caloric Efficiency") +
   
   # UNIFIED THEME OVERRIDES
   theme(
@@ -210,54 +210,6 @@ print(p_static)
 
 
 
-# --- PLOT 5: CIRCULAR BARPLOT (Anatomical Tachometer) ---
-# Goal: Visualize targeted muscle groups as a technical gauge / blueprint.
-muscle_data <- df %>%
-  count(`Target Muscle Group`, sort = TRUE) %>%
-  mutate(
-    Highlight = ifelse(n > mean(n), "Major Focus", "Minor Focus"),
-    Label_Text = paste0(`Target Muscle Group`, " (", n, ")")
-  )
-
-max_val <- max(muscle_data$n)
-label_pos <- -max_val * 0.02 
-limit_negative <- -max_val * 0.6 
-
-p_muscle <- ggplot(muscle_data, aes(x = reorder(`Target Muscle Group`, n), y = n)) +
-  geom_col(aes(y = max_val), fill = col_grey, width = 0.6) +
-  geom_col(aes(fill = Highlight), width = 0.6) +
-  
-  # UNIFIED FONT
-  geom_text(aes(y = label_pos, label = Label_Text), hjust = 1, color = "black", fontface = "bold", size = 3.2, family = font_main) +
-  
-  coord_polar(theta = "y", start = pi, direction = 1) +
-  
-  # UNIFIED COLORS (Teal/Red)
-  scale_fill_manual(
-    name = "Training Volume",
-    values = c("Major Focus" = col_red, "Minor Focus" = col_teal),
-    labels = c("Major Focus (> Avg)", "Minor Focus (< Avg)")
-  ) +
-  
-  scale_y_continuous(limits = c(limit_negative, max_val)) +
-  scale_x_discrete(expand = expansion(add = c(0.4, 0.5))) +
-  
-  theme_void(base_family = font_main) +
-  labs(title = "Anatomical Tachometer", subtitle = "Muscle Activation Load (RPM)") +
-  
-  # UNIFIED THEME OVERRIDES
-  theme(
-    plot.title = element_text(family = font_main, face = "bold", size = 22, hjust = 0.5, color = "black"),
-    plot.subtitle = element_text(family = font_main, size = 14, hjust = 0.5, color = "black", margin = margin(b = -10)),
-    legend.position = "right",
-    legend.title = element_text(family = font_main, face = "bold", size = 10, color = "black"),
-    legend.text = element_text(family = font_main, size = 9, color = "black"),
-    plot.margin = margin(0, 20, 0, 0)
-  )
-
-print(p_muscle)
-
-
 # ==============================================================================
 # PART 3: OUTPUT (THE RESULTS)
 # Analyzing Physiological Adaptation and Body Composition
@@ -289,7 +241,7 @@ p_dumbbell <- ggplot(dumbbell_data, aes(y = `Difficulty Level`)) +
   scale_y_discrete(limits = rev) +
   
   labs(title = "Heart Rate Reserve Analysis", 
-       subtitle = "Green Bar: Actual Training Intensity Used | Grey Bar: Total Reserve", 
+       subtitle = "Green Bar: Actual Training Intensity Used | Grey Bar: Left Reserve", 
        x = "Heart Rate (BPM)", y = "") +
   
   theme_unified() +
@@ -311,7 +263,7 @@ p_ridge <- ggplot(ridge_data, aes(x = Fat_Percentage, y = Group_Label, fill = af
   scale_fill_viridis_c(name = "Body Fat %", option = "C") +
   
   labs(title = "Mountains of Fat", 
-       subtitle = "Height = Density (Relative num. of people) | White line = Median", 
+       subtitle = "Height = Density (Relative num. of people)\nWhite line = Median", 
        x = "Body Fat Percentage [%]", y = "") +
   
   theme_unified() +
