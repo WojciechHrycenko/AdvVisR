@@ -1,6 +1,6 @@
 # AdvVisR - Advanced Data Visualisation in R
 
-![Project Status](https://img.shields.io/badge/Status-In%20Progress-yellow)
+![Project Status](https://img.shields.io/badge/Status-Completed-green)
 ![Course](https://img.shields.io/badge/Course-Advanced%20Visualization%20R-blue)
 ![R](https://img.shields.io/badge/Language-R-276DC3?logo=r&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python&logoColor=white)
